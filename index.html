@@ -1,0 +1,711 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gerador de Skins bonk.io</title>
+<style>
+	:root {
+		--bg: #1b1d22;
+		--panel: #262931;
+		--line: #353944;
+		--text: #e6e8ec;
+		--muted: #9aa0ab;
+		--accent: #4f9cff;
+		--good: #3ecf8e;
+	}
+	* { box-sizing: border-box; }
+	body {
+		margin: 0;
+		background: var(--bg);
+		color: var(--text);
+		font: 14px/1.45 system-ui, "Segoe UI", sans-serif;
+	}
+	header { padding: 16px 24px; border-bottom: 1px solid var(--line); }
+	header h1 { margin: 0; font-size: 18px; }
+	header p { margin: 2px 0 0; color: var(--muted); }
+	main {
+		display: grid;
+		grid-template-columns: 280px 1fr;
+		gap: 20px;
+		padding: 20px 24px;
+		max-width: 1200px;
+	}
+	.panel {
+		background: var(--panel);
+		border: 1px solid var(--line);
+		border-radius: 10px;
+		padding: 16px;
+	}
+	.controls label { display: block; margin-bottom: 14px; color: var(--muted); }
+	.controls label span { float: right; color: var(--text); font-variant-numeric: tabular-nums; }
+	.controls input[type=range] { width: 100%; }
+	.row { display: flex; gap: 8px; flex-wrap: wrap; }
+	button {
+		background: var(--line);
+		color: var(--text);
+		border: 0;
+		border-radius: 6px;
+		padding: 8px 14px;
+		font: inherit;
+		cursor: pointer;
+	}
+	button.primary { background: var(--accent); color: #fff; }
+	button:disabled { opacity: .45; cursor: default; }
+	#drop {
+		border: 2px dashed var(--line);
+		border-radius: 8px;
+		padding: 18px 10px;
+		text-align: center;
+		color: var(--muted);
+		margin-bottom: 12px;
+		cursor: pointer;
+	}
+	#drop.over { border-color: var(--accent); color: var(--text); }
+	.previews { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+	.previews figure { margin: 0; text-align: center; }
+	.previews figcaption { color: var(--muted); margin-top: 6px; }
+	canvas.round { border-radius: 50%; background: #111; display: block; }
+	#progressBar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin: 14px 0 6px; }
+	#progressFill { height: 100%; width: 0; background: var(--good); transition: width .1s; }
+	#status { color: var(--muted); font-variant-numeric: tabular-nums; }
+	textarea {
+		width: 100%;
+		min-height: 80px;
+		background: var(--bg);
+		color: var(--text);
+		border: 1px solid var(--line);
+		border-radius: 6px;
+		padding: 8px;
+		font: 12px ui-monospace, Consolas, monospace;
+		word-break: break-all;
+	}
+	h2 { font-size: 14px; margin: 20px 0 8px; }
+	table { border-collapse: collapse; width: 100%; font-size: 12px; font-variant-numeric: tabular-nums; }
+	td, th { padding: 3px 6px; border-bottom: 1px solid var(--line); text-align: right; }
+	th { color: var(--muted); font-weight: normal; }
+	.swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: middle; margin-right: 4px; }
+	#paletteBox { margin-top: 6px; max-width: 200px; }
+	.brushfig { width: 200px; }
+	#targetCanvas { cursor: crosshair; touch-action: none; }
+	.brushbar { display: flex; gap: 4px; margin: 8px 0; }
+	.brushbar button { flex: 1; padding: 6px 4px; font-size: 12px; }
+	.brushbar button.active[data-mode=important] { background: #c99a1a; color: #fff; }
+	.brushbar button.active[data-mode=ignore] { background: #7a3340; color: #fff; }
+	.brushbar button.active[data-mode=erase] { background: var(--accent); color: #fff; }
+	label.mini { display: block; text-align: left; color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+	label.mini span { float: right; color: var(--text); }
+	label.mini input { width: 100%; }
+	#clearBrush { width: 100%; font-size: 12px; padding: 6px; }
+	.shapefilter { border-top: 1px solid var(--line); padding-top: 12px; margin: 4px 0 14px; }
+	.shapefilter-title { margin-bottom: 8px; }
+	.shapefilter-title span { float: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+	#shapeGroups label { margin-bottom: 6px; color: var(--text); }
+	#shapeGroups small { display: block; color: var(--muted); margin-left: 22px; font-size: 11px; }
+	.shapefilter summary { cursor: pointer; color: var(--muted); margin-top: 4px; }
+	#shapeGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(32px, 1fr)); gap: 3px; margin-top: 8px; }
+	#shapeGrid button { aspect-ratio: 1; padding: 3px; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; }
+	#shapeGrid button img { width: 100%; height: 100%; object-fit: contain; display: block; }
+	#shapeGrid button.off { opacity: .25; }
+	#paletteBox .swatch { width: 16px; height: 16px; margin: 1px; border: 1px solid var(--line); }
+	@media (max-width: 760px) {
+		main { grid-template-columns: 1fr; padding: 16px; }
+	}
+</style>
+</head>
+<body>
+<header>
+	<h1>Gerador de Skins bonk.io</h1>
+	<p>Aproxima uma imagem com até 16 camadas das 115 formas do jogo.</p>
+</header>
+<main>
+	<section class="panel controls">
+		<div id="drop">Arraste uma imagem aqui<br>ou clique para escolher</div>
+		<input type="file" id="file" accept="image/*" hidden>
+		<div class="row" style="margin-bottom:16px">
+			<button id="sample">Exemplo: bandeira</button>
+			<button id="sampleFace">Exemplo: rosto</button>
+		</div>
+		<label>Camadas <span id="layersVal"></span><input type="range" id="layers" min="1" max="16" value="16"></label>
+		<label>Qualidade <span id="qualityVal"></span><input type="range" id="quality" min="1" max="5" value="3"></label>
+		<label>Tentativas <span id="attemptsVal"></span><input type="range" id="attempts" min="1" max="8" value="4"></label>
+		<label>Zoom da imagem <span id="zoomVal"></span><input type="range" id="zoom" min="100" max="250" value="100"></label>
+		<label>Simplificação <span id="simplifyVal"></span><input type="range" id="simplify" min="0" max="4" value="2"></label>
+		<label>Cores <span id="colorsVal"></span><input type="range" id="colors" min="2" max="16" value="6"></label>
+		<label>Ênfase em bordas <span id="edgeVal"></span><input type="range" id="edge" min="0" max="6" value="2"></label>
+		<label><input type="checkbox" id="usePalette" checked> Usar só cores da paleta</label>
+		<label>Fundo p/ transparência <input type="color" id="transparentBg" value="#ffffff" style="float:right"></label>
+		<label style="clear:both"><input type="checkbox" id="allowFlip" checked> Permitir espelhar formas</label>
+		<div class="shapefilter">
+			<div class="shapefilter-title">Formas permitidas <span id="shapeCount"></span></div>
+			<div id="shapeGroups"></div>
+			<details>
+				<summary>Escolher uma a uma</summary>
+				<div id="shapeGrid"></div>
+			</details>
+		</div>
+		<div class="row">
+			<button id="generate" class="primary" disabled>Gerar</button>
+			<button id="stop" disabled>Parar</button>
+		</div>
+		<div id="progressBar"><div id="progressFill"></div></div>
+		<div id="status">Carregando formas…</div>
+	</section>
+	<section class="panel">
+		<div class="previews">
+			<figure class="brushfig">
+				<canvas id="targetCanvas" class="round" width="200" height="200"></canvas>
+				<figcaption>Referência · pinte para marcar</figcaption>
+				<div class="brushbar">
+					<button class="mode active" data-mode="important" title="Detalhes que não podem faltar">Importante</button>
+					<button class="mode" data-mode="ignore" title="Áreas que podem ser sacrificadas">Ignorar</button>
+					<button class="mode" data-mode="erase">Apagar</button>
+				</div>
+				<label class="mini">Pincel <span id="brushSizeVal"></span><input type="range" id="brushSize" min="4" max="50" value="16"></label>
+				<label class="mini">Força <span id="brushStrengthVal"></span><input type="range" id="brushStrength" min="2" max="12" value="6"></label>
+				<button id="clearBrush">Limpar pincel</button>
+			</figure>
+			<figure><canvas id="processedCanvas" class="round" width="200" height="200"></canvas><figcaption>Alvo do gerador</figcaption><div id="paletteBox"></div></figure>
+			<figure><canvas id="resultCanvas" class="round" width="300" height="300"></canvas><figcaption>Skin gerada</figcaption></figure>
+		</div>
+		<h2>String da skin (formato do jogo)</h2>
+		<textarea id="skinString" placeholder="Gere uma skin, ou cole uma string aqui e clique em Visualizar"></textarea>
+		<div class="row" style="margin-top:8px">
+			<button id="copy">Copiar</button>
+			<button id="decode">Visualizar string colada</button>
+			<button id="downloadJson">Baixar JSON</button>
+		</div>
+		<h2>Camadas (0 = topo)</h2>
+		<table id="layerTable"></table>
+	</section>
+</main>
+<script src="shapes.js"></script>
+<script src="bonkSkinCodec.js"></script>
+<script src="preprocess.js"></script>
+<script src="shapeCategories.js"></script>
+<script src="generator.js"></script>
+<script>
+const N = 96;
+const $ = id => document.getElementById(id);
+let shapes = null;
+let sourceImage = null;
+let running = null;
+let currentSkin = null;
+
+const QUALITY = [
+	null,
+	{ candidates: 230, climb: 80, seeds: 2, refine: 800 },
+	{ candidates: 460, climb: 120, seeds: 3, refine: 2000 },
+	{ candidates: 690, climb: 150, seeds: 4, refine: 4000 },
+	{ candidates: 1150, climb: 200, seeds: 6, refine: 8000 },
+	{ candidates: 1725, climb: 300, seeds: 8, refine: 16000 }
+];
+const QUALITY_NAMES = ["", "Rápida", "Boa", "Alta", "Muito alta", "Máxima"];
+
+const SIMPLIFY_NAMES = ["Desligada", "Só cores", "Leve", "Média", "Forte"];
+
+function syncLabels() {
+	$("layersVal").textContent = $("layers").value;
+	$("qualityVal").textContent = QUALITY_NAMES[$("quality").value];
+	$("zoomVal").textContent = $("zoom").value + "%";
+	$("simplifyVal").textContent = SIMPLIFY_NAMES[$("simplify").value];
+	$("attemptsVal").textContent = $("attempts").value + (workersSupported ? " em paralelo" : " em sequência");
+	$("brushSizeVal").textContent = $("brushSize").value;
+	$("brushStrengthVal").textContent = "×" + $("brushStrength").value;
+	$("colorsVal").textContent = $("colors").value;
+	$("edgeVal").textContent = $("edge").value == 0 ? "Nenhuma" : "×" + (1 + +$("edge").value);
+}
+
+// Desenha a referência num quadrado (encaixe "cover" + zoom), sobre a cor de fundo escolhida
+function drawReference(ctx, size) {
+	ctx.fillStyle = $("transparentBg").value;
+	ctx.fillRect(0, 0, size, size);
+	if (!sourceImage) {
+		return;
+	}
+	const w = sourceImage.width;
+	const h = sourceImage.height;
+	const zoom = $("zoom").value / 100;
+	const s = size / Math.min(w, h) * zoom;
+	ctx.drawImage(sourceImage, (size - w * s) / 2, (size - h * s) / 2, w * s, h * s);
+}
+
+// Pincel de importância: máscara na resolução do canvas de referência
+// (1 = importante, -1 = ignorar, 0 = nada)
+const M = 200;
+const brushMask = new Int8Array(M * M);
+let brushMode = "important";
+let hasBrushMarks = false;
+
+function drawReferenceView() {
+	const c = $("targetCanvas");
+	const ctx = c.getContext("2d");
+	drawReference(ctx, M);
+	if (!hasBrushMarks) {
+		return;
+	}
+	const overlay = new ImageData(M, M);
+	for (let p = 0; p < M * M; p++) {
+		if (brushMask[p] == 1) {
+			overlay.data.set([255, 196, 0, 120], p * 4);
+		} else if (brushMask[p] == -1) {
+			overlay.data.set([20, 20, 30, 170], p * 4);
+		}
+	}
+	const tmp = document.createElement("canvas");
+	tmp.width = tmp.height = M;
+	tmp.getContext("2d").putImageData(overlay, 0, 0);
+	ctx.drawImage(tmp, 0, 0);
+}
+
+function paintSegment(x0, y0, x1, y1) {
+	const r = +$("brushSize").value / 2;
+	const value = brushMode == "important" ? 1 : brushMode == "ignore" ? -1 : 0;
+	const steps = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / (r / 2)));
+	for (let s = 0; s <= steps; s++) {
+		const cx = x0 + (x1 - x0) * s / steps;
+		const cy = y0 + (y1 - y0) * s / steps;
+		for (let y = Math.max(0, Math.floor(cy - r)); y <= Math.min(M - 1, Math.ceil(cy + r)); y++) {
+			for (let x = Math.max(0, Math.floor(cx - r)); x <= Math.min(M - 1, Math.ceil(cx + r)); x++) {
+				if (Math.hypot(x + .5 - cx, y + .5 - cy) <= r) {
+					brushMask[y * M + x] = value;
+				}
+			}
+		}
+	}
+	hasBrushMarks = brushMask.some(v => v != 0);
+}
+
+// Converte a máscara para N×N: multiplicador de peso por pixel (ou null sem marcas)
+function importanceMap() {
+	if (!hasBrushMarks) {
+		return null;
+	}
+	const strength = +$("brushStrength").value;
+	const imp = new Float32Array(N * N);
+	const ign = new Float32Array(N * N);
+	const cnt = new Float32Array(N * N);
+	for (let y = 0; y < M; y++) {
+		for (let x = 0; x < M; x++) {
+			const p = Math.floor(y * N / M) * N + Math.floor(x * N / M);
+			const v = brushMask[y * M + x];
+			cnt[p]++;
+			if (v == 1) imp[p]++;
+			else if (v == -1) ign[p]++;
+		}
+	}
+	const out = new Float32Array(N * N);
+	for (let p = 0; p < N * N; p++) {
+		out[p] = (1 + (strength - 1) * imp[p] / cnt[p]) * (1 - .95 * ign[p] / cnt[p]);
+	}
+	return out;
+}
+
+function clearBrush() {
+	brushMask.fill(0);
+	hasBrushMarks = false;
+}
+
+function updateTargetPreview() {
+	drawReferenceView();
+	const prepared = getPreparedTarget();
+	const small = document.createElement("canvas");
+	small.width = small.height = N;
+	small.getContext("2d").putImageData(new ImageData(prepared.preview, N, N), 0, 0);
+	const pc = $("processedCanvas");
+	const pctx = pc.getContext("2d");
+	pctx.clearRect(0, 0, pc.width, pc.height);
+	pctx.drawImage(small, 0, 0, pc.width, pc.height);
+	const hex = c => "#" + labToRgbInt(c).toString(16).padStart(6, "0");
+	$("paletteBox").innerHTML = (prepared.displayPalette || []).map(c => `<span class="swatch" style="background:${hex(c)}" title="${hex(c)}"></span>`).join("");
+}
+
+// Referência em N×N, pré-processada conforme os controles de simplificação/cores/bordas
+function getPreparedTarget() {
+	const c = document.createElement("canvas");
+	c.width = c.height = N;
+	const ctx = c.getContext("2d");
+	ctx.imageSmoothingQuality = "high";
+	drawReference(ctx, N);
+	return prepareTarget(ctx.getImageData(0, 0, N, N).data, N, {
+		simplify: +$("simplify").value,
+		colors: +$("colors").value,
+		edgeEmphasis: +$("edge").value,
+		usePalette: $("usePalette").checked,
+		importance: importanceMap()
+	});
+}
+
+function setImage(img) {
+	sourceImage = img;
+	clearBrush();
+	updateTargetPreview();
+	$("generate").disabled = !shapes;
+	$("status").textContent = "Imagem carregada. Clique em Gerar.";
+}
+
+function loadFile(file) {
+	if (!file || !file.type.startsWith("image/")) {
+		return;
+	}
+	const img = new Image();
+	img.onload = () => setImage(img);
+	img.src = URL.createObjectURL(file);
+}
+
+// Imagem de exemplo: bandeira do Brasil simplificada
+function makeSample() {
+	const c = document.createElement("canvas");
+	c.width = c.height = 400;
+	const ctx = c.getContext("2d");
+	ctx.fillStyle = "#009c3b";
+	ctx.fillRect(0, 0, 400, 400);
+	ctx.fillStyle = "#ffdf00";
+	ctx.beginPath();
+	ctx.moveTo(200, 40); ctx.lineTo(380, 200); ctx.lineTo(200, 360); ctx.lineTo(20, 200);
+	ctx.fill();
+	ctx.fillStyle = "#002776";
+	ctx.beginPath();
+	ctx.arc(200, 200, 100, 0, Math.PI * 2);
+	ctx.fill();
+	ctx.strokeStyle = "#ffffff";
+	ctx.lineWidth = 16;
+	ctx.beginPath();
+	ctx.arc(200, 420, 250, -Math.PI * .68, -Math.PI * .32);
+	ctx.stroke();
+	setImage(c);
+}
+
+// Imagem de exemplo com detalhes: rosto com degradês, olhos, cabelo e ruído
+function makeFaceSample() {
+	const c = document.createElement("canvas");
+	c.width = c.height = 400;
+	const ctx = c.getContext("2d");
+	const sky = ctx.createLinearGradient(0, 0, 0, 400);
+	sky.addColorStop(0, "#3d8fe0");
+	sky.addColorStop(1, "#bfe1ff");
+	ctx.fillStyle = sky;
+	ctx.fillRect(0, 0, 400, 400);
+	const ellipse = (x, y, rx, ry, color, rot = 0) => {
+		ctx.fillStyle = color;
+		ctx.beginPath();
+		ctx.ellipse(x, y, rx, ry, rot, 0, Math.PI * 2);
+		ctx.fill();
+	};
+	ellipse(200, 190, 165, 160, "#4a2c17");
+	const skin = ctx.createRadialGradient(170, 190, 20, 200, 220, 160);
+	skin.addColorStop(0, "#ffd9b0");
+	skin.addColorStop(1, "#d99a68");
+	ellipse(200, 225, 130, 150, skin);
+	ellipse(200, 95, 140, 55, "#4a2c17");
+	ellipse(150, 205, 30, 20, "#ffffff");
+	ellipse(250, 205, 30, 20, "#ffffff");
+	ellipse(153, 207, 14, 14, "#2a7a3a");
+	ellipse(247, 207, 14, 14, "#2a7a3a");
+	ellipse(153, 207, 6, 6, "#000000");
+	ellipse(247, 207, 6, 6, "#000000");
+	ctx.strokeStyle = "#3a2010";
+	ctx.lineWidth = 9;
+	ctx.lineCap = "round";
+	ctx.beginPath(); ctx.moveTo(118, 175); ctx.quadraticCurveTo(150, 160, 180, 172); ctx.stroke();
+	ctx.beginPath(); ctx.moveTo(220, 172); ctx.quadraticCurveTo(250, 160, 282, 175); ctx.stroke();
+	ctx.strokeStyle = "#b9764a";
+	ctx.lineWidth = 6;
+	ctx.beginPath(); ctx.moveTo(200, 225); ctx.lineTo(190, 265); ctx.lineTo(208, 268); ctx.stroke();
+	ctx.fillStyle = "#b8323a";
+	ctx.beginPath(); ctx.moveTo(150, 300); ctx.quadraticCurveTo(200, 350, 250, 300); ctx.quadraticCurveTo(200, 318, 150, 300); ctx.fill();
+	ellipse(130, 270, 22, 14, "rgba(255,110,110,.35)");
+	ellipse(270, 270, 22, 14, "rgba(255,110,110,.35)");
+	const img = ctx.getImageData(0, 0, 400, 400);
+	let seed = 7;
+	for (let i = 0; i < img.data.length; i += 4) {
+		seed = (seed * 1103515245 + 12345) >>> 0;
+		const n = (seed / 4294967296 - .5) * 40;
+		img.data[i] += n;
+		img.data[i + 1] += n;
+		img.data[i + 2] += n;
+	}
+	ctx.putImageData(img, 0, 0);
+	setImage(c);
+}
+
+function showSkin(skin) {
+	currentSkin = skin;
+	drawSkin($("resultCanvas").getContext("2d"), skin, shapes, $("resultCanvas").width);
+	const hex = c => "#" + c.toString(16).padStart(6, "0");
+	const rows = skin.layers.map((l, i) => `<tr><td>${i}</td><td title="id ${l.id}">${SHAPE_NAMES[l.id] || l.id}</td><td>${l.x.toFixed(2)}</td><td>${l.y.toFixed(2)}</td><td>${l.scale.toFixed(3)}</td><td>${l.angle.toFixed(1)}</td><td>${l.flipX ? "X" : ""}${l.flipY ? "Y" : ""}</td><td><span class="swatch" style="background:${hex(l.color)}"></span>${hex(l.color)}</td></tr>`);
+	$("layerTable").innerHTML = `<tr><th>#</th><th>forma</th><th>x</th><th>y</th><th>escala</th><th>ângulo</th><th>flip</th><th>cor</th></tr>${rows.join("")}<tr><td colspan="7">fundo (bc)</td><td><span class="swatch" style="background:${hex(skin.bc)}"></span>${hex(skin.bc)}</td></tr>`;
+}
+
+// Filtro de formas: grupos (shapeCategories.js) + escolha individual, lembrado no navegador
+const SHAPE_STORAGE_KEY = "bonkSkinGen.allowedShapes";
+let allowedShapes = new Set(SHAPE_GROUPS.filter(g => g.on).flatMap(g => g.ids));
+try {
+	const saved = JSON.parse(localStorage.getItem(SHAPE_STORAGE_KEY));
+	if (Array.isArray(saved) && saved.length) allowedShapes = new Set(saved);
+} catch (err) {}
+
+function saveAllowedShapes() {
+	try {
+		localStorage.setItem(SHAPE_STORAGE_KEY, JSON.stringify([...allowedShapes]));
+	} catch (err) {}
+}
+
+function buildShapeFilter() {
+	$("shapeGroups").innerHTML = SHAPE_GROUPS.map(g => `<label><input type="checkbox" data-group="${g.key}"> ${g.name} (${g.ids.length})<small>${g.hint}</small></label>`).join("");
+	$("shapeGroups").querySelectorAll("input").forEach(box => box.onchange = () => {
+		const group = SHAPE_GROUPS.find(g => g.key == box.dataset.group);
+		group.ids.forEach(id => box.checked ? allowedShapes.add(id) : allowedShapes.delete(id));
+		syncShapeFilter();
+	});
+	$("shapeGrid").innerHTML = SHAPE_NAMES.map((name, id) => id ? `<button data-id="${id}" title="${id}: ${name}"><img src="${BONK_SHAPES[id]}" alt="${name}"></button>` : "").join("");
+	$("shapeGrid").querySelectorAll("button").forEach(b => b.onclick = () => {
+		const id = +b.dataset.id;
+		allowedShapes.has(id) ? allowedShapes.delete(id) : allowedShapes.add(id);
+		syncShapeFilter();
+	});
+	syncShapeFilter();
+}
+
+function syncShapeFilter() {
+	$("shapeGroups").querySelectorAll("input").forEach(box => {
+		const ids = SHAPE_GROUPS.find(g => g.key == box.dataset.group).ids;
+		const on = ids.filter(id => allowedShapes.has(id)).length;
+		box.checked = on == ids.length;
+		box.indeterminate = on > 0 && on < ids.length;
+	});
+	$("shapeGrid").querySelectorAll("button").forEach(b => b.classList.toggle("off", !allowedShapes.has(+b.dataset.id)));
+	$("shapeCount").textContent = `${allowedShapes.size}/115`;
+	saveAllowedShapes();
+}
+
+// Várias tentativas independentes (cada uma com sua sorte), cada uma num Web Worker;
+// no fim fica a de menor erro. Sem suporte a Workers (ex.: aberto via file://),
+// as tentativas rodam uma após a outra na própria página.
+let workersSupported = typeof Worker != "undefined" && location.protocol != "file:";
+
+function generate() {
+	stop();
+	if (!allowedShapes.size) {
+		$("status").textContent = "Escolha pelo menos uma forma permitida.";
+		return;
+	}
+	const prepared = getPreparedTarget();
+	const options = Object.assign({
+		layers: +$("layers").value,
+		allowFlip: $("allowFlip").checked,
+		allowedShapes: [...allowedShapes],
+		weights: prepared.weights,
+		palette: prepared.palette
+	}, QUALITY[$("quality").value]);
+	const count = +$("attempts").value;
+	running = {
+		started: performance.now(),
+		attempts: Array.from({ length: count }, () => ({ progress: 0, deltaE: Infinity, skin: null, done: false })),
+		workers: [],
+		timer: null,
+		lastDraw: 0,
+		shownSkin: null
+	};
+	$("stop").disabled = false;
+	$("skinString").value = "";
+	if (workersSupported) {
+		try {
+			startWorkers(prepared, options);
+			return;
+		} catch (err) {
+			workersSupported = false;
+		}
+	}
+	runOnPage(prepared, options, 0);
+}
+
+function startWorkers(prepared, options) {
+	const workerShapes = shapes.map(s => s && { id: s.id, w: s.w, h: s.h, mw: s.mw, mh: s.mh, mk: s.mk, mask: s.mask });
+	running.attempts.forEach((_, i) => {
+		const worker = new Worker("worker.js");
+		worker.onmessage = e => onAttemptUpdate(i, e.data);
+		worker.onerror = e => {
+			e.preventDefault();
+			onAttemptUpdate(i, { type: "done", progress: 1, deltaE: Infinity, skin: null, error: e.message || "erro no worker" });
+		};
+		worker.postMessage({ shapes: workerShapes, target: prepared.lab, N, options });
+		running.workers.push(worker);
+	});
+}
+
+function runOnPage(prepared, options, i) {
+	const run = running;
+	const gen = new SkinGenerator(shapes, prepared.lab, N, options);
+	const tick = () => {
+		if (running != run) {
+			return;
+		}
+		const progress = gen.step(40);
+		const done = gen.phase == "done";
+		onAttemptUpdate(i, { type: done ? "done" : "progress", progress, phase: gen.phase, layers: gen.layers.length, deltaE: gen.errorDeltaE(gen.currentError()), skin: gen.toSkin() });
+		if (done) {
+			if (i + 1 < run.attempts.length && running == run) {
+				runOnPage(prepared, options, i + 1);
+			}
+		} else {
+			run.timer = setTimeout(tick, 0);
+		}
+	};
+	tick();
+}
+
+function bestAttempt() {
+	return running.attempts.filter(a => a.skin).sort((a, b) => a.deltaE - b.deltaE)[0] || null;
+}
+
+function onAttemptUpdate(i, msg) {
+	if (!running) {
+		return;
+	}
+	const attempt = running.attempts[i];
+	Object.assign(attempt, { progress: msg.progress, deltaE: msg.deltaE, phase: msg.phase, layers: msg.layers, error: msg.error });
+	if (msg.skin) {
+		attempt.skin = msg.skin;
+	}
+	attempt.done = msg.type == "done";
+	const attempts = running.attempts;
+	const progress = attempts.reduce((s, a) => s + a.progress, 0) / attempts.length;
+	$("progressFill").style.width = (progress * 100).toFixed(1) + "%";
+	const doneCount = attempts.filter(a => a.done).length;
+	const best = bestAttempt();
+	const seconds = ((performance.now() - running.started) / 1000).toFixed(1);
+	$("status").textContent = `tentativas ${doneCount}/${attempts.length} prontas · melhor ΔE ${best ? best.deltaE.toFixed(1) : "–"} · ${seconds}s`;
+	if (best && best.skin != running.shownSkin && performance.now() - running.lastDraw > 250) {
+		running.lastDraw = performance.now();
+		running.shownSkin = best.skin;
+		showSkin(best.skin);
+	}
+	if (doneCount == attempts.length) {
+		finish();
+	}
+}
+
+function finish() {
+	if (!running) {
+		return;
+	}
+	running.workers.forEach(w => w.terminate());
+	clearTimeout(running.timer);
+	const best = bestAttempt();
+	const summary = running.attempts.map(a => a.skin ? a.deltaE.toFixed(1) : "–");
+	const failed = running.attempts.find(a => a.error);
+	const seconds = ((performance.now() - running.started) / 1000).toFixed(1);
+	running = null;
+	$("stop").disabled = true;
+	if (!best) {
+		$("status").textContent = "Nenhuma tentativa terminou" + (failed ? ": " + failed.error : ".");
+		return;
+	}
+	showSkin(best.skin);
+	$("skinString").value = encodeSkin(best.skin);
+	$("status").textContent = `pronto · melhor ΔE ${best.deltaE.toFixed(1)} · tentativas: ${summary.join(", ")} · ${seconds}s`;
+	const errors = validateSkin(best.skin);
+	if (errors.length) {
+		$("status").textContent += " · aviso: " + errors.join(", ");
+	}
+}
+
+function stop() {
+	if (running) {
+		finish();
+	}
+}
+
+$("drop").onclick = () => $("file").click();
+$("file").onchange = e => loadFile(e.target.files[0]);
+$("drop").ondragover = e => { e.preventDefault(); $("drop").classList.add("over"); };
+$("drop").ondragleave = () => $("drop").classList.remove("over");
+$("drop").ondrop = e => { e.preventDefault(); $("drop").classList.remove("over"); loadFile(e.dataTransfer.files[0]); };
+window.onpaste = e => {
+	const item = [...e.clipboardData.items].find(i => i.type.startsWith("image/"));
+	if (item) loadFile(item.getAsFile());
+};
+$("sample").onclick = makeSample;
+$("sampleFace").onclick = makeFaceSample;
+$("generate").onclick = generate;
+$("stop").onclick = stop;
+["layers", "quality", "attempts"].forEach(id => $(id).oninput = syncLabels);
+["zoom", "simplify", "colors", "edge"].forEach(id => $(id).oninput = () => { syncLabels(); updateTargetPreview(); });
+$("transparentBg").oninput = updateTargetPreview;
+$("usePalette").onchange = updateTargetPreview;
+$("brushSize").oninput = syncLabels;
+$("brushStrength").oninput = () => { syncLabels(); updateTargetPreview(); };
+$("clearBrush").onclick = () => { clearBrush(); updateTargetPreview(); };
+document.querySelectorAll(".brushbar .mode").forEach(b => b.onclick = () => {
+	brushMode = b.dataset.mode;
+	document.querySelectorAll(".brushbar .mode").forEach(o => o.classList.toggle("active", o == b));
+});
+{
+	const canvas = $("targetCanvas");
+	let last = null;
+	const pos = e => {
+		const rect = canvas.getBoundingClientRect();
+		return [(e.clientX - rect.left) * M / rect.width, (e.clientY - rect.top) * M / rect.height];
+	};
+	canvas.onpointerdown = e => {
+		if (!sourceImage) return;
+		canvas.setPointerCapture(e.pointerId);
+		last = pos(e);
+		paintSegment(last[0], last[1], last[0], last[1]);
+		drawReferenceView();
+	};
+	canvas.onpointermove = e => {
+		if (!last) return;
+		const p = pos(e);
+		paintSegment(last[0], last[1], p[0], p[1]);
+		last = p;
+		drawReferenceView();
+	};
+	canvas.onpointerup = canvas.onpointercancel = () => {
+		if (!last) return;
+		last = null;
+		updateTargetPreview();
+	};
+}
+$("copy").onclick = () => {
+	navigator.clipboard.writeText($("skinString").value);
+	$("status").textContent = "String copiada.";
+};
+$("decode").onclick = () => {
+	try {
+		showSkin(decodeSkin($("skinString").value.trim()));
+		$("status").textContent = "String decodificada.";
+	} catch (err) {
+		$("status").textContent = "String inválida: " + err.message;
+	}
+};
+$("downloadJson").onclick = () => {
+	if (!currentSkin) return;
+	const a = document.createElement("a");
+	a.href = URL.createObjectURL(new Blob([JSON.stringify(currentSkin, null, 2)], { type: "application/json" }));
+	a.download = "skin.json";
+	a.click();
+};
+
+// Padrão: até 4 tentativas, sem passar do número de núcleos
+$("attempts").value = Math.min(4, navigator.hardwareConcurrency || 2);
+syncLabels();
+updateTargetPreview();
+// shapes.js não é versionado (arte do jogo); é gerado por tools/extract-shapes.js
+if (typeof BONK_SHAPES == "undefined") {
+	$("status").innerHTML = "<b>shapes.js não encontrado.</b> Gere com <code>node tools/extract-shapes.js</code> e recarregue a página (veja o README).";
+} else {
+	buildShapeFilter();
+	loadShapeMasks(BONK_SHAPES).then(s => {
+		shapes = s;
+		const count = s.filter(Boolean).length;
+		$("status").textContent = `${count} formas carregadas. Escolha uma imagem.`;
+		$("generate").disabled = !sourceImage;
+	}).catch(err => {
+		$("status").textContent = "Erro ao carregar formas: " + err.message;
+	});
+}
+</script>
+</body>
+</html>

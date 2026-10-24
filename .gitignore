@@ -1,0 +1,7 @@
+# Arte do bonk.io: gerada localmente por tools/extract-shapes.js, não redistribuída
+shapes.js
+GameResources.js
+
+node_modules/
+.DS_Store
+Thumbs.db
