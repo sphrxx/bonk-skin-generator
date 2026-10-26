@@ -2,7 +2,7 @@
 // (ver FORMATO_SKIN.md). Funciona no navegador e no Node 16+ (usa btoa/atob globais).
 
 // O jogo só aceita 16 na rede; acima disso, quem vê é quem tem o bonk-extra-layers.user.js
-const MAX_LAYERS = 64;
+const MAX_LAYERS = 127; // o nº de camadas ocupa 1 byte (n*2+1 <= 255)
 const MAX_SHAPE_ID = 115;
 const DEFAULT_BC = 4492031;
 

@@ -5,8 +5,8 @@ create table public.skin_extras (
 	key text primary key check (key ~ '^[0-9a-f]{32}$'),
 	extras jsonb not null check (
 		jsonb_typeof(extras) = 'array'
-		and jsonb_array_length(extras) between 1 and 48
-		and octet_length(extras::text) <= 10000
+		and jsonb_array_length(extras) between 1 and 111 -- 127 no total, com as 16 da sala
+		and octet_length(extras::text) <= 20000
 	),
 	created_at timestamptz not null default now(),
 	ip_hash text -- só para o limite de envios; não é legível pela chave pública
@@ -41,7 +41,7 @@ begin
 	if (select count(*) from public.skin_extras where created_at > now() - interval '1 hour') >= 500 then
 		raise exception 'limite global de envios por hora atingido' using errcode = '54000';
 	end if;
-	if (select count(*) from public.skin_extras) >= 30000 then
+	if (select count(*) from public.skin_extras) >= 20000 then
 		raise exception 'banco de skins cheio' using errcode = '54000';
 	end if;
 	return new;
