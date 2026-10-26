@@ -3,6 +3,7 @@
 
 const SKIN_RADIUS = 15;
 const MASK_RES = 128;
+const CONCENTRIC_SCALES = [.35, .5, .65, .8, 1.12, 1.25, 1.4, 1.6];
 
 // Rasteriza as SVGs de BONK_SHAPES em máscaras binárias (alfa > 50%).
 async function loadShapeMasks(svgStrings) {
@@ -100,7 +101,7 @@ class SkinGenerator {
 		this.shapes = shapes;
 		this.target = target;
 		this.N = N;
-		this.opts = Object.assign({ layers: 16, candidates: 690, climb: 150, seeds: 4, refine: 5000, allowFlip: true, reinsertRate: .02, anneal: .02 }, options);
+		this.opts = Object.assign({ layers: 16, candidates: 690, climb: 150, seeds: 4, refine: 5000, allowFlip: true, reinsertRate: .02, anneal: .02, concentric: true }, options);
 		// options.allowedShapes: ids que o gerador pode usar (padrão: todos)
 		const allowed = this.opts.allowedShapes && this.opts.allowedShapes.length ? new Set(this.opts.allowedShapes) : null;
 		this.shapeIds = shapes.map((s, id) => s && id).filter(id => id && (!allowed || allowed.has(id)));
@@ -347,6 +348,23 @@ class SkinGenerator {
 				const s = this.scoreInsert(layer);
 				if (s.color) {
 					pool.push(Object.assign(s, { layer }));
+				}
+			}
+		}
+		// Cópias concêntricas das camadas existentes: maior atrás vira contorno, menor na frente vira
+		// miolo (íris, pupila, anel). O sorteio quase nunca acerta essas poses, e o scoreInsert já
+		// escolhe a profundidade.
+		if (this.opts.concentric) {
+			for (const base of this.layers) {
+				for (const k of CONCENTRIC_SCALES) {
+					const layer = Object.assign({}, base, { scale: base.scale * k, color: [0, 0, 0] });
+					if (layer.scale < .02 || layer.scale > 9.5) {
+						continue;
+					}
+					const s = this.scoreInsert(layer);
+					if (s.color) {
+						pool.push(Object.assign(s, { layer }));
+					}
 				}
 			}
 		}
