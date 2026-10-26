@@ -96,7 +96,7 @@ ver como ela fica.
 
 | Controle | O que faz |
 |---|---|
-| **Camadas** | Quantas camadas usar (1–64). Acima de 16, veja [Skins com mais de 16 camadas](#skins-com-mais-de-16-camadas). |
+| **Camadas** | Quantas camadas usar (1–127). Acima de 16, veja [Skins com mais de 16 camadas](#skins-com-mais-de-16-camadas). |
 | **Qualidade** | Quanto o algoritmo procura por camada e quanto refina no final. Mais alto = melhor e mais lento. |
 | **Tentativas** | Quantas execuções independentes rodar em paralelo (Web Workers). No fim fica a melhor. |
 | **Zoom da imagem** | Aproxima a imagem dentro do círculo da bola. |
@@ -166,7 +166,7 @@ avatar com mais de 16 camadas ou com campos extras. O userscript
 
 | Quem | O que aparece |
 |---|---|
-| Você e outros jogadores **com** o Extra Layers | A skin inteira (até 64 camadas). |
+| Você e outros jogadores **com** o Extra Layers | A skin inteira (até 127 camadas, o máximo que o formato de skin do jogo guarda). |
 | Jogadores **sem** o script | As 16 camadas de baixo, sem os detalhes do topo. A skin não some. |
 
 As camadas extras aparecem alguns instantes depois de o jogador entrar: na próxima vez que o jogo
@@ -184,7 +184,7 @@ redesenha aquela skin (atualização da lista do lobby ou começo da partida).
    tabela pode ser pública: só leitura e inserção, sem editar nem apagar
    ([`supabase/skin_extras.sql`](supabase/skin_extras.sql)).
 4. Contra spam, o banco aceita no máximo 20 envios por hora por IP, 500 por hora no total e
-   30 mil linhas. Cada skin nova é um envio; entrar em salas com a mesma skin não conta de novo.
+   20 mil linhas. Cada skin nova é um envio; entrar em salas com a mesma skin não conta de novo.
 
 A classe `Skin` fica presa dentro do `alpha2s.js`. O script coloca um setter temporário de
 `layers` em `Object.prototype` e, quando o construtor da `Skin` faz `this.layers = []`, pega o
@@ -194,7 +194,7 @@ protótipo, troca `fromObject` e adiciona um `toJSON`. Depois remove o setter.
 
 1. Instale `bonk-extra-layers.user.js` como o outro userscript. Ele precisa rodar antes do jogo
    (`@run-at document-start`). No console (F12) deve aparecer `[ExtraLayers] ativo`.
-2. Gere uma skin com mais de 16 camadas e importe com o botão **Importar** (aceita até 64).
+2. Gere uma skin com mais de 16 camadas e importe com o botão **Importar** (aceita até 127).
 3. Salve e entre numa sala. Quem tem o script vê no console
    `[ExtraLayers] skin com N camadas carregada`.
 

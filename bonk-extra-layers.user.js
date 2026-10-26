@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         bonk.io Extra Layers
 // @namespace    bonktestes
-// @version      2.1
-// @description  Mostra e envia skins com mais de 16 camadas (até 64) no bonk.io
+// @version      2.2
+// @description  Mostra e envia skins com mais de 16 camadas (até 127) no bonk.io
 // @match        https://bonk.io/gameframe-release.html*
 // @match        https://bonkisback.io/gameframe-release.html*
 // @run-at       document-start
@@ -25,7 +25,7 @@
 	const SUPABASE_URL = "https://dqpmpxbxwztprwrbvrpm.supabase.co/rest/v1/skin_extras";
 	const SUPABASE_KEY = "sb_publishable_82oN9LHd0WspQJezU7ourA_0r8fQBDo"; // chave pública; a tabela só permite ler e inserir
 	const VANILLA_MAX = 16;
-	const MAX_LAYERS = 64;
+	const MAX_LAYERS = 127; // limite do formato de skin do jogo: o nº de camadas ocupa 1 byte (n*2+1)
 	const K_MAX = 26; // |ângulo| fica abaixo de 180 + 360·26 = 9540, dentro do limite de ±9999 do jogo
 	const RETRY_DELAYS = [0, 3000, 8000]; // quem entra na sala pode buscar antes do upload terminar
 

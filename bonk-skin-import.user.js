@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         bonk.io Skin Import
 // @namespace    bonktestes
-// @version      1.1
+// @version      1.2
 // @description  Importa uma string de skin (do Gerador de Skins) direto no editor de skin do bonk.io
 // @match        https://bonk.io/gameframe-release.html*
 // @match        https://bonkisback.io/gameframe-release.html*
@@ -42,7 +42,7 @@
 		const view = new DataView(Uint8Array.from(bin, c => c.charCodeAt(0)).buffer);
 		const layerCount = (view.getUint8(7) - 1) / 2;
 		// Acima de 16, só aparece para os outros com o bonk-extra-layers.user.js
-		if (!Number.isInteger(layerCount) || layerCount < 0 || layerCount > 64) {
+		if (!Number.isInteger(layerCount) || layerCount < 0 || layerCount > 127) {
 			throw new Error(`número de camadas inválido (${layerCount})`);
 		}
 		// cabeçalho (9) + 1ª camada (31) + demais (28 cada) + bc (4)
