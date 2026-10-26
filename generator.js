@@ -46,8 +46,10 @@ async function loadShapeMasks(svgStrings) {
 	return shapes;
 }
 
-// Percorre os pixels (dentro do círculo) cobertos por uma camada, numa grade N×N.
-function forEachCovered(layer, shape, N, inCircle, cb) {
+// Escreve em out os pixels (dentro do círculo) cobertos por uma camada, numa grade N×N,
+// e devolve quantos são. É o laço mais quente do gerador: sem callback por pixel e com
+// as coordenadas na forma avançando por soma ao longo da linha.
+function coveredPixels(layer, shape, N, inCircle, out) {
 	const R = N / 2;
 	const u = R / SKIN_RADIUS;
 	const rad = layer.angle * Math.PI / 180;
@@ -57,30 +59,38 @@ function forEachCovered(layer, shape, N, inCircle, cb) {
 	const fy = (layer.flipY ? -1 : 1) / layer.scale;
 	const cx = R + layer.x * u;
 	const cy = R + layer.y * u;
-	const half = layer.scale * Math.hypot(shape.w, shape.h) / 2 * u;
-	const x0 = Math.max(0, Math.floor(cx - half));
-	const x1 = Math.min(N - 1, Math.ceil(cx + half));
-	const y0 = Math.max(0, Math.floor(cy - half));
-	const y1 = Math.min(N - 1, Math.ceil(cy + half));
+	// Caixa justa do retângulo da forma girado (formas finas cobrem bem menos que o círculo envolvente)
+	const s = Math.abs(layer.scale) * u / 2;
+	const halfX = s * (Math.abs(cos) * shape.w + Math.abs(sin) * shape.h);
+	const halfY = s * (Math.abs(sin) * shape.w + Math.abs(cos) * shape.h);
+	const x0 = Math.max(0, Math.floor(cx - halfX));
+	const x1 = Math.min(N - 1, Math.ceil(cx + halfX));
+	const y0 = Math.max(0, Math.floor(cy - halfY));
+	const y1 = Math.min(N - 1, Math.ceil(cy + halfY));
 	const { mask, mw, mh, mk, w, h } = shape;
+	// Passo das coordenadas na máscara a cada pixel para a direita
+	const dnx = cos / u * fx * mk;
+	const dny = -sin / u * fy * mk;
+	let n = 0;
 	for (let py = y0; py <= y1; py++) {
 		const sy = (py + .5 - cy) / u;
-		for (let px = x0; px <= x1; px++) {
-			const p = py * N + px;
-			if (!inCircle[p]) {
-				continue;
-			}
-			const sx = (px + .5 - cx) / u;
-			const nx = ((cos * sx + sin * sy) * fx + w / 2) * mk;
-			const ny = ((-sin * sx + cos * sy) * fy + h / 2) * mk;
+		const sx0 = (x0 + .5 - cx) / u;
+		const nx0 = ((cos * sx0 + sin * sy) * fx + w / 2) * mk;
+		const ny0 = ((-sin * sx0 + cos * sy) * fy + h / 2) * mk;
+		const row = py * N;
+		for (let px = x0, k = 0; px <= x1; px++, k++) {
+			const nx = nx0 + k * dnx;
+			const ny = ny0 + k * dny;
 			if (nx < 0 || ny < 0 || nx >= mw || ny >= mh) {
 				continue;
 			}
-			if (mask[(ny | 0) * mw + (nx | 0)]) {
-				cb(p);
+			const p = row + px;
+			if (inCircle[p] && mask[(ny | 0) * mw + (nx | 0)]) {
+				out[n++] = p;
 			}
 		}
 	}
+	return n;
 }
 
 class SkinGenerator {
@@ -90,7 +100,7 @@ class SkinGenerator {
 		this.shapes = shapes;
 		this.target = target;
 		this.N = N;
-		this.opts = Object.assign({ layers: 16, candidates: 690, climb: 150, seeds: 4, refine: 4000, allowFlip: true }, options);
+		this.opts = Object.assign({ layers: 16, candidates: 690, climb: 150, seeds: 4, refine: 5000, allowFlip: true, reinsertRate: .02, anneal: .02 }, options);
 		// options.allowedShapes: ids que o gerador pode usar (padrão: todos)
 		const allowed = this.opts.allowedShapes && this.opts.allowedShapes.length ? new Set(this.opts.allowedShapes) : null;
 		this.shapeIds = shapes.map((s, id) => s && id).filter(id => id && (!allowed || allowed.has(id)));
@@ -106,6 +116,8 @@ class SkinGenerator {
 			if (this.inCircle[p]) this.weightSum += this.weights[p];
 		}
 		this.owner = new Int16Array(N * N);
+		this.coverageCache = new Map();
+		this.pixelBuffer = new Int32Array(N * N);
 		this.curErr = new Float32Array(N * N);
 		this.buckets = new Float64Array((this.opts.layers + 2) * 7);
 		this.layers = [];
@@ -137,13 +149,31 @@ class SkinGenerator {
 		return { color: best, err: bestErr };
 	}
 
+	// Pixels cobertos por uma camada. O refino muda uma camada por vez, então as outras
+	// vêm do cache em vez de serem rasterizadas de novo (a cor não muda a cobertura).
+	coverage(layer) {
+		const key = `${layer.id},${layer.scale},${layer.angle},${layer.x},${layer.y},${layer.flipX},${layer.flipY}`;
+		let pixels = this.coverageCache.get(key);
+		if (!pixels) {
+			pixels = this.pixelBuffer.slice(0, coveredPixels(layer, this.shapes[layer.id], this.N, this.inCircle, this.pixelBuffer));
+			if (this.coverageCache.size > 2000) {
+				this.coverageCache.clear();
+			}
+			this.coverageCache.set(key, pixels);
+		}
+		return pixels;
+	}
+
 	// Desenha o "dono" de cada pixel (-1 = fundo, i = layers[i]) e calcula as cores ótimas
 	// de cada camada nos pixels em que ela fica visível
 	evaluate(layers) {
 		const { N, inCircle, owner, target: T, weights: W } = this;
 		owner.fill(-1);
 		for (let i = layers.length - 1; i >= 0; i--) {
-			forEachCovered(layers[i], this.shapes[layers[i].id], N, inCircle, p => { owner[p] = i; });
+			const pixels = this.coverage(layers[i]);
+			for (let j = 0; j < pixels.length; j++) {
+				owner[pixels[j]] = i;
+			}
 		}
 		const k = layers.length + 1;
 		const sums = new Float64Array(k * 6);
@@ -208,8 +238,10 @@ class SkinGenerator {
 		const k = this.layers.length;
 		const B = this.buckets;
 		B.fill(0, 0, (k + 1) * 7);
-		const { target: T, owner, curErr, weights: W } = this;
-		forEachCovered(layer, this.shapes[layer.id], this.N, this.inCircle, p => {
+		const { target: T, owner, curErr, weights: W, pixelBuffer: pixels } = this;
+		const count0 = coveredPixels(layer, this.shapes[layer.id], this.N, this.inCircle, pixels);
+		for (let j = 0; j < count0; j++) {
+			const p = pixels[j];
 			// bucket 0 = fundo, j+1 = layers[j]
 			const o = (owner[p] + 1) * 7;
 			const i = p * 3;
@@ -221,7 +253,7 @@ class SkinGenerator {
 			B[o + 4] += w * T[i + 2];
 			B[o + 5] += w * (T[i] * T[i] + T[i + 1] * T[i + 1] + T[i + 2] * T[i + 2]);
 			B[o + 6] += curErr[p];
-		});
+		}
 		let count = B[0], n = B[1], s0 = B[2], s1 = B[3], s2 = B[4], sq = B[5], old = B[6];
 		let best = { delta: Infinity };
 		for (let d = k; d >= 0; d--) {
@@ -347,14 +379,15 @@ class SkinGenerator {
 		return true;
 	}
 
-	// Refino global: muta uma camada (ou a ordem) e mantém se o erro cair.
-	// De vez em quando remove uma camada e reinsere a melhor encontrada pela busca.
+	// Refino global: muta uma camada (ou a ordem) e mantém se o erro cair (ou, no começo,
+	// subir pouco: recozimento). Em 2% dos passos remove uma camada e reinsere a melhor
+	// encontrada pela busca: é o movimento que mais melhora o resultado, apesar de caro.
 	refineStep() {
 		const n = this.layers.length;
 		const i = Math.floor(Math.random() * n);
 		const r = Math.random();
 		const progress = this.refineDone / this.opts.refine;
-		if (r < .01 || this.invisible.has(i)) {
+		if (r < this.opts.reinsertRate || this.invisible.has(i)) {
 			this.reinsert(i);
 		} else {
 			const layers = this.layers.slice();
@@ -367,10 +400,16 @@ class SkinGenerator {
 			// Se rejeitado, owner fica com o teste; tudo bem, pois só reinsert usa owner
 			// e ele chama refresh antes
 			const ev = this.evaluate(layers);
-			if (ev.err < this.err) {
+			// Recozimento: no começo aceita pioras pequenas para sair de mínimos locais; a
+			// tolerância cai a zero até o fim, e a melhor solução vista é guardada
+			const tolerance = this.err * this.opts.anneal * (1 - progress) ** 2 * -Math.log(Math.random());
+			if (ev.err < this.err + tolerance) {
 				this.refresh(layers, ev);
 				this.invisible = this.findInvisible(ev);
 			}
+		}
+		if (!this.best || this.err < this.best.err) {
+			this.best = { err: this.err, layers: this.layers };
 		}
 		this.refineDone++;
 	}
@@ -400,6 +439,9 @@ class SkinGenerator {
 				}
 			} else if (this.phase == "refine") {
 				if (this.refineDone >= this.opts.refine) {
+					if (this.best && this.best.err < this.err) {
+						this.refresh(this.best.layers);
+					}
 					this.phase = "done";
 				} else {
 					this.refineStep();
