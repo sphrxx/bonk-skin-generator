@@ -183,6 +183,8 @@ redesenha aquela skin (atualização da lista do lobby ou começo da partida).
    bater, a linha é ignorada. Por isso ninguém consegue pôr camadas na skin de outra pessoa, e a
    tabela pode ser pública: só leitura e inserção, sem editar nem apagar
    ([`supabase/skin_extras.sql`](supabase/skin_extras.sql)).
+4. Contra spam, o banco aceita no máximo 20 envios por hora por IP, 500 por hora no total e
+   30 mil linhas. Cada skin nova é um envio; entrar em salas com a mesma skin não conta de novo.
 
 A classe `Skin` fica presa dentro do `alpha2s.js`. O script coloca um setter temporário de
 `layers` em `Object.prototype` e, quando o construtor da `Skin` faz `this.layers = []`, pega o
