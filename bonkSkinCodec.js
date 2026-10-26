@@ -1,14 +1,15 @@
 // Codec de skins do bonk.io, reproduzindo Skin.toString()/fromString() do alpha2s.js
 // (ver FORMATO_SKIN.md). Funciona no navegador e no Node 16+ (usa btoa/atob globais).
 
-const MAX_LAYERS = 16;
+// O jogo só aceita 16 na rede; acima disso, quem vê é quem tem o bonk-extra-layers.user.js
+const MAX_LAYERS = 64;
 const MAX_SHAPE_ID = 115;
 const DEFAULT_BC = 4492031;
 
 function encodeSkin(skin) {
 	const layers = skin.layers || [];
 	if (layers.length > MAX_LAYERS) {
-		throw new Error(`Skin tem ${layers.length} camadas; o jogo aceita no máximo ${MAX_LAYERS}`);
+		throw new Error(`Skin tem ${layers.length} camadas; o máximo é ${MAX_LAYERS}`);
 	}
 	const view = new DataView(new ArrayBuffer(16 + layers.length * 32));
 	let i = 0;
