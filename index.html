@@ -108,6 +108,9 @@
 	#shapeGrid button img { width: 100%; height: 100%; object-fit: contain; display: block; }
 	#shapeGrid button.off { opacity: .25; }
 	#paletteBox .swatch { width: 16px; height: 16px; margin: 1px; border: 1px solid var(--line); }
+	.controls label small.hint { display: block; font-size: 11px; margin-top: 2px; }
+	#attentionToggle { width: 100%; font-size: 12px; padding: 6px; margin-top: 6px; }
+	#attentionToggle.active { background: #c99a1a; color: #fff; }
 	@media (max-width: 760px) {
 		main { grid-template-columns: 1fr; padding: 16px; }
 	}
@@ -132,7 +135,8 @@
 		<label>Zoom da imagem <span id="zoomVal"></span><input type="range" id="zoom" min="100" max="250" value="100"></label>
 		<label>Simplificação <span id="simplifyVal"></span><input type="range" id="simplify" min="0" max="4" value="2"></label>
 		<label>Cores <span id="colorsVal"></span><input type="range" id="colors" min="2" max="64" value="6"></label>
-		<label>Ênfase em bordas <span id="edgeVal"></span><input type="range" id="edge" min="0" max="6" value="2"></label>
+		<label>Prioridade a detalhes <span id="edgeVal"></span><input type="range" id="edge" min="0" max="6" value="2">
+			<small class="hint">Faz o gerador caprichar nos contornos e em áreas pequenas (olhos, boca), aceitando errar um pouco nas áreas grandes (×3 = um erro ali pesa 3 vezes mais). Use <b>Mapa de atenção</b> para ver onde.</small></label>
 		<label><input type="checkbox" id="usePalette" checked> Usar só cores da paleta</label>
 		<label>Fundo p/ transparência <input type="color" id="transparentBg" value="#ffffff" style="float:right"></label>
 		<label style="clear:both"><input type="checkbox" id="allowFlip" checked> Permitir espelhar formas</label>
@@ -165,7 +169,8 @@
 				<label class="mini">Força <span id="brushStrengthVal"></span><input type="range" id="brushStrength" min="2" max="12" value="6"></label>
 				<button id="clearBrush">Limpar pincel</button>
 			</figure>
-			<figure><canvas id="processedCanvas" class="round" width="200" height="200"></canvas><figcaption>Alvo do gerador</figcaption><div id="paletteBox"></div></figure>
+			<figure class="brushfig"><canvas id="processedCanvas" class="round" width="200" height="200"></canvas><figcaption id="processedCaption">Alvo do gerador</figcaption><div id="paletteBox"></div>
+				<button id="attentionToggle" title="Mostra onde o gerador se esforça mais para acertar (prioridade a detalhes + pincel)">Mapa de atenção</button></figure>
 			<figure><canvas id="resultCanvas" class="round" width="300" height="300"></canvas><figcaption>Skin gerada</figcaption></figure>
 		</div>
 		<h2>String da skin (formato do jogo)</h2>
@@ -194,15 +199,17 @@ let currentSkin = null;
 
 const QUALITY = [
 	null,
-	{ candidates: 230, climb: 80, seeds: 2, refine: 800 },
-	{ candidates: 460, climb: 120, seeds: 3, refine: 2000 },
-	{ candidates: 690, climb: 150, seeds: 4, refine: 4000 },
-	{ candidates: 1150, climb: 200, seeds: 6, refine: 8000 },
-	{ candidates: 1725, climb: 300, seeds: 8, refine: 16000 }
+	{ candidates: 230, climb: 80, seeds: 2, refine: 1000 },
+	{ candidates: 460, climb: 120, seeds: 3, refine: 2500 },
+	{ candidates: 690, climb: 150, seeds: 4, refine: 5000 },
+	{ candidates: 1150, climb: 200, seeds: 6, refine: 10000 },
+	{ candidates: 1725, climb: 300, seeds: 8, refine: 20000 }
 ];
 const QUALITY_NAMES = ["", "Rápida", "Boa", "Alta", "Muito alta", "Máxima"];
 
 const SIMPLIFY_NAMES = ["Desligada", "Só cores", "Leve", "Média", "Forte"];
+const EDGE_NAMES = ["Desligada", "Leve", "Média", "Alta", "Muito alta", "Forte", "Máxima"];
+let showAttention = false;
 
 function syncLabels() {
 	$("layersVal").textContent = $("layers").value;
@@ -213,7 +220,7 @@ function syncLabels() {
 	$("brushSizeVal").textContent = $("brushSize").value;
 	$("brushStrengthVal").textContent = "×" + $("brushStrength").value;
 	$("colorsVal").textContent = $("colors").value;
-	$("edgeVal").textContent = $("edge").value == 0 ? "Nenhuma" : "×" + (1 + +$("edge").value);
+	$("edgeVal").textContent = EDGE_NAMES[$("edge").value] + ($("edge").value == 0 ? "" : " · ×" + (1 + +$("edge").value));
 }
 
 // Desenha a referência num quadrado (encaixe "cover" + zoom), sobre a cor de fundo escolhida
@@ -311,13 +318,35 @@ function updateTargetPreview() {
 	const prepared = getPreparedTarget();
 	const small = document.createElement("canvas");
 	small.width = small.height = N;
-	small.getContext("2d").putImageData(new ImageData(prepared.preview, N, N), 0, 0);
+	small.getContext("2d").putImageData(new ImageData(showAttention ? attentionImage(prepared) : prepared.preview, N, N), 0, 0);
+	$("processedCaption").textContent = showAttention ? "Mapa de atenção (claro = mais esforço)" : "Alvo do gerador";
 	const pc = $("processedCanvas");
 	const pctx = pc.getContext("2d");
 	pctx.clearRect(0, 0, pc.width, pc.height);
 	pctx.drawImage(small, 0, 0, pc.width, pc.height);
 	const hex = c => "#" + labToRgbInt(c).toString(16).padStart(6, "0");
 	$("paletteBox").innerHTML = (prepared.displayPalette || []).map(c => `<span class="swatch" style="background:${hex(c)}" title="${hex(c)}"></span>`).join("");
+}
+
+// Peso de cada pixel no erro (prioridade a detalhes × pincel) como mapa de calor sobre o alvo apagado:
+// escuro = peso normal, amarelo/branco = o gerador se esforça mais para acertar ali
+function attentionImage(prepared) {
+	const { weights, preview } = prepared;
+	let max = 1;
+	for (let p = 0; p < N * N; p++) {
+		if (preview[p * 4 + 3]) max = Math.max(max, weights[p]);
+	}
+	const out = new Uint8ClampedArray(N * N * 4);
+	for (let p = 0; p < N * N; p++) {
+		// 0 = peso 1 (ou menos, áreas ignoradas), 1 = peso máximo
+		const t = Math.max(0, (weights[p] - 1) / (max - 1 || 1));
+		const gray = (preview[p * 4] + preview[p * 4 + 1] + preview[p * 4 + 2]) / 3 * .25 * Math.min(1, weights[p]);
+		out[p * 4] = gray + t * (255 - gray);
+		out[p * 4 + 1] = gray + t * t * (220 - gray);
+		out[p * 4 + 2] = gray + t * t * t * (120 - gray);
+		out[p * 4 + 3] = preview[p * 4 + 3];
+	}
+	return out;
 }
 
 // Referência em N×N, pré-processada conforme os controles de simplificação/cores/bordas
@@ -637,6 +666,11 @@ $("usePalette").onchange = updateTargetPreview;
 $("brushSize").oninput = syncLabels;
 $("brushStrength").oninput = () => { syncLabels(); updateTargetPreview(); };
 $("clearBrush").onclick = () => { clearBrush(); updateTargetPreview(); };
+$("attentionToggle").onclick = () => {
+	showAttention = !showAttention;
+	$("attentionToggle").classList.toggle("active", showAttention);
+	updateTargetPreview();
+};
 document.querySelectorAll(".brushbar .mode").forEach(b => b.onclick = () => {
 	brushMode = b.dataset.mode;
 	document.querySelectorAll(".brushbar .mode").forEach(o => o.classList.toggle("active", o == b));

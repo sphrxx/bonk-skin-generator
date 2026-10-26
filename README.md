@@ -102,7 +102,7 @@ ver como ela fica.
 | **Zoom da imagem** | Aproxima a imagem dentro do círculo da bola. |
 | **Simplificação** | Desligada → Forte. Suaviza texturas e ruído preservando as bordas e reduz a imagem a poucas cores, o que dá um visual "cartoon" que 16 formas conseguem representar. |
 | **Cores** | Tamanho da paleta usada na simplificação (2–64). Com mais de 16 camadas, vale subir junto. |
-| **Ênfase em bordas** | Dá mais peso a contornos e a regiões pequenas no interior da imagem (olhos, boca). |
+| **Prioridade a detalhes** | Faz o gerador caprichar nos contornos e em áreas pequenas e fechadas (olhos, boca), aceitando errar um pouco nas áreas grandes. ×3 = um erro ali pesa 3 vezes mais. O botão **Mapa de atenção**, embaixo do alvo, mostra em amarelo onde o gerador vai se esforçar mais (já somando o pincel). |
 | **Usar só cores da paleta** | Cada forma recebe uma das cores da paleta, em vez de um tom intermediário "lamacento". |
 | **Fundo p/ transparência** | Cor usada atrás de imagens com transparência. |
 | **Permitir espelhar formas** | Libera o flip horizontal e vertical das formas. |
@@ -221,7 +221,7 @@ node tools/test-extra-layers.js caminho/para/alpha2s-desofuscado.js
 - **Logos e bandeiras**: experimente deixar só as *Formas básicas*.
 - **Personagens**: use o padrão (*Formas básicas* + *Partes de rosto*) e pinte olhos e boca como
   *Importante*.
-- **Detalhes sumindo**: aumente **Cores** para 7–8 e **Ênfase em bordas** para ×4–×5.
+- **Detalhes sumindo**: aumente **Cores** para 7–8 e **Prioridade a detalhes** para ×4–×5, e confira no **Mapa de atenção** se os detalhes ficaram claros.
 - **Resultado muito variável**: aumente **Tentativas**.
 - Pinte **depois** de ajustar o zoom: a marcação fica presa ao quadro da referência.
 
@@ -261,9 +261,12 @@ no círculo. `layers[0]` é a camada de cima.
   colocado cedo impedia que um losango maior ficasse por baixo dele.
 - **Avaliação rápida**: um mapa de "dono" de cada pixel permite avaliar todas as profundidades numa
   única passada. Com somas ponderadas, a melhor cor (média em Lab ou a cor da paleta de menor erro)
-  sai em tempo constante.
-- **Refino**: muta posição, tamanho, ângulo, espelhamento, forma e ordem das camadas, e de vez em
-  quando remove uma camada e reinsere a melhor alternativa. Só aceita mudanças que reduzem o erro.
+  sai em tempo constante. Os pixels cobertos por cada camada ficam em cache, e o laço que os calcula
+  usa a caixa justa da forma girada e coordenadas incrementais.
+- **Refino**: muta posição, tamanho, ângulo, espelhamento, forma e ordem das camadas. Em 2% dos
+  passos remove uma camada e reinsere a melhor alternativa encontrada pela busca: é o movimento que
+  mais melhora o resultado. No começo aceita pioras pequenas (recozimento simulado) para sair de
+  soluções ruins, com a tolerância caindo a zero até o fim; no final fica a melhor solução vista.
 - **Várias tentativas** ([`worker.js`](worker.js)): cada tentativa roda num Web Worker com sua
   própria sorte, e a página fica com a de menor erro.
 
