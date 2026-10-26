@@ -259,6 +259,10 @@ no círculo. `layers[0]` é a camada de cima.
   as melhores sementes por *hill climbing*. Cada candidata pode ser **inserida em qualquer
   profundidade da pilha**, não só no topo. Isso foi decisivo: sem essa liberdade, um círculo
   colocado cedo impedia que um losango maior ficasse por baixo dele.
+- **Cópias concêntricas**: além das formas sorteadas, cada busca testa cópias das camadas que já
+  existem, em escalas de 0,35× a 1,6×. Uma cópia maior atrás vira contorno; uma menor na frente vira
+  miolo (anel, íris, pupila). Sem isso, um anel saía montado com vários fragmentos; com isso, sai
+  como círculo sobre círculo, como um humano faria.
 - **Avaliação rápida**: um mapa de "dono" de cada pixel permite avaliar todas as profundidades numa
   única passada. Com somas ponderadas, a melhor cor (média em Lab ou a cor da paleta de menor erro)
   sai em tempo constante. Os pixels cobertos por cada camada ficam em cache, e o laço que os calcula
