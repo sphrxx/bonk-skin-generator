@@ -20,6 +20,7 @@ horas; este projeto procura sozinho a combinação de formas que mais se parece 
 - [Como começar](#como-começar)
 - [Usando o gerador](#usando-o-gerador)
 - [Importando a skin no jogo](#importando-a-skin-no-jogo)
+- [Skins com mais de 16 camadas](#skins-com-mais-de-16-camadas)
 - [Dicas para melhores resultados](#dicas-para-melhores-resultados)
 - [Como funciona](#como-funciona)
 - [Formato da skin](#formato-da-skin)
@@ -95,12 +96,12 @@ ver como ela fica.
 
 | Controle | O que faz |
 |---|---|
-| **Camadas** | Quantas camadas usar (1–16). |
+| **Camadas** | Quantas camadas usar (1–64). Acima de 16, veja [Skins com mais de 16 camadas](#skins-com-mais-de-16-camadas). |
 | **Qualidade** | Quanto o algoritmo procura por camada e quanto refina no final. Mais alto = melhor e mais lento. |
 | **Tentativas** | Quantas execuções independentes rodar em paralelo (Web Workers). No fim fica a melhor. |
 | **Zoom da imagem** | Aproxima a imagem dentro do círculo da bola. |
 | **Simplificação** | Desligada → Forte. Suaviza texturas e ruído preservando as bordas e reduz a imagem a poucas cores, o que dá um visual "cartoon" que 16 formas conseguem representar. |
-| **Cores** | Tamanho da paleta usada na simplificação (2–16). |
+| **Cores** | Tamanho da paleta usada na simplificação (2–64). Com mais de 16 camadas, vale subir junto. |
 | **Ênfase em bordas** | Dá mais peso a contornos e a regiões pequenas no interior da imagem (olhos, boca). |
 | **Usar só cores da paleta** | Cada forma recebe uma das cores da paleta, em vez de um tom intermediário "lamacento". |
 | **Fundo p/ transparência** | Cor usada atrás de imagens com transparência. |
@@ -151,6 +152,62 @@ abrir. O script nunca lê nem envia o seu token: o salvamento é o do próprio j
 
 Antes de importar, o script valida a string (cabeçalho, número de camadas e tamanho) e mostra um
 erro se ela for inválida.
+
+---
+
+## Skins com mais de 16 camadas
+
+O limite de 16 camadas não está no formato da skin nem no desenho. Ele está em `Skin.fromObject`,
+que lê a skin dos outros jogadores, e no servidor, que recusa com `avatar_data_invalid` qualquer
+avatar com mais de 16 camadas ou com campos extras. O userscript
+[`bonk-extra-layers.user.js`](bonk-extra-layers.user.js) contorna isso com um banco no Supabase.
+
+### Quem vê o quê
+
+| Quem | O que aparece |
+|---|---|
+| Você e outros jogadores **com** o Extra Layers | A skin inteira (até 64 camadas). |
+| Jogadores **sem** o script | As 16 camadas de baixo, sem os detalhes do topo. A skin não some. |
+
+As camadas extras aparecem alguns instantes depois de o jogador entrar: na próxima vez que o jogo
+redesenha aquela skin (atualização da lista do lobby ou começo da partida).
+
+### Como funciona
+
+1. Ao entrar ou criar uma sala, o script manda ao bonk só as 16 camadas de baixo, no formato que
+   o servidor aceita, e envia as camadas extras para a tabela `skin_extras` do Supabase.
+2. A chave da tabela fica escondida nas 16 camadas enviadas: cada uma gira um número inteiro de
+   voltas (360°·k), o que não muda nada na tela. Os 16 valores de `k` saem do SHA-256 da skin
+   inteira.
+3. Quem tem o script lê os `k` da skin recebida, busca as camadas extras e confere o hash. Se não
+   bater, a linha é ignorada. Por isso ninguém consegue pôr camadas na skin de outra pessoa, e a
+   tabela pode ser pública: só leitura e inserção, sem editar nem apagar
+   ([`supabase/skin_extras.sql`](supabase/skin_extras.sql)).
+
+A classe `Skin` fica presa dentro do `alpha2s.js`. O script coloca um setter temporário de
+`layers` em `Object.prototype` e, quando o construtor da `Skin` faz `this.layers = []`, pega o
+protótipo, troca `fromObject` e adiciona um `toJSON`. Depois remove o setter.
+
+### Instalação e uso
+
+1. Instale `bonk-extra-layers.user.js` como o outro userscript. Ele precisa rodar antes do jogo
+   (`@run-at document-start`). No console (F12) deve aparecer `[ExtraLayers] ativo`.
+2. Gere uma skin com mais de 16 camadas e importe com o botão **Importar** (aceita até 64).
+3. Salve e entre numa sala. Quem tem o script vê no console
+   `[ExtraLayers] skin com N camadas carregada`.
+
+Para testar sem abrir o jogo (usa um Supabase falso):
+
+```bash
+node tools/test-extra-layers.js caminho/para/alpha2s-desofuscado.js
+```
+
+### O que ainda precisa ser testado no jogo
+
+- **O servidor salva mais de 16 camadas na conta?** Depois de salvar, recarregue a página. Se a
+  skin voltar inteira, o slot guarda. Se não, ela só vale até recarregar.
+- **O servidor repassa os ângulos sem mexer?** Se ele arredondar ou limitar os ângulos, o hash não
+  confere e todo mundo vê só as 16 camadas.
 
 ---
 
@@ -223,7 +280,8 @@ base64 e depois para `encodeURIComponent`.
 
 - Na conta, a skin é salva por `POST https://bonk2.io/scripts/avatar_update.php`, em 5 slots.
 - Dentro da sala, ela viaja como objeto JSON `{ layers, bc }`. Quem recebe descarta as camadas se
-  houver mais de 16, e por isso o limite de 16 é real.
+  houver mais de 16. Esse é o único lugar com limite: `fromString` e o renderer aceitam qualquer
+  quantidade (veja [Skins com mais de 16 camadas](#skins-com-mais-de-16-camadas)).
 
 Detalhes completos, com tabela de bytes e geometria: **[FORMATO_SKIN.md](FORMATO_SKIN.md)**.
 
@@ -240,6 +298,9 @@ Detalhes completos, com tabela de bytes e geometria: **[FORMATO_SKIN.md](FORMATO
 | [`shapeCategories.js`](shapeCategories.js) | Nomes das 115 formas (os mesmos do editor do jogo) e grupos do filtro. |
 | [`bonkSkinCodec.js`](bonkSkinCodec.js) | Codificação e decodificação da string de skin. |
 | [`bonk-skin-import.user.js`](bonk-skin-import.user.js) | Userscript que importa a skin no jogo. |
+| [`bonk-extra-layers.user.js`](bonk-extra-layers.user.js) | Userscript que mostra e envia skins com mais de 16 camadas. |
+| [`tools/test-extra-layers.js`](tools/test-extra-layers.js) | Teste do Extra Layers contra a classe `Skin` original do jogo. |
+| [`supabase/skin_extras.sql`](supabase/skin_extras.sql) | Tabela do Supabase usada pelo Extra Layers. |
 | [`tools/extract-shapes.js`](tools/extract-shapes.js) | Gera o `shapes.js` a partir do `GameResources.js` do jogo. |
 | [`FORMATO_SKIN.md`](FORMATO_SKIN.md) | Documentação do formato da skin. |
 | `shapes.js` | *(gerado localmente, não versionado)* As 115 SVGs das formas. |
