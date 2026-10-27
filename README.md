@@ -255,6 +255,12 @@ O modelo de desenho reproduz o `AvatarRenderer` do jogo: bola de raio 15 unidade
 centralizada em `(x, y)`, girada, espelhada, escalada e pintada com cor sólida, e tudo recortado
 no círculo. `layers[0]` é a camada de cima.
 
+- **Estrutura primeiro** (só com paleta): antes de tudo, separa as regiões conectadas de cada cor
+  do alvo simplificado, preenche os buracos (o rosto inclui os olhos) e, da maior para a menor,
+  encaixa em cada uma a forma de maior sobreposição (IoU), empilhando por cima. A maior região, se
+  cobre quase tudo, fica como cor de base. Usa no máximo metade das camadas. Sem isso, a busca
+  gulosa nunca punha o círculo do rosto, porque ele piora a imagem até os olhos entrarem por cima;
+  com isso, rosto, olhos e boca saem inteiros em vez de fragmentos.
 - **Construção gulosa**: a cada passo, testa todas as formas permitidas em poses aleatórias e refina
   as melhores sementes por *hill climbing*. Cada candidata pode ser **inserida em qualquer
   profundidade da pilha**, não só no topo. Isso foi decisivo: sem essa liberdade, um círculo
