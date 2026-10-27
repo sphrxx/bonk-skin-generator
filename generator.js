@@ -2,7 +2,8 @@
 // Geometria igual à do AvatarRenderer: bola de raio 15 unidades, layers[0] é a camada de cima.
 
 const SKIN_RADIUS = 15;
-const MASK_RES = 128;
+// 512: com 128, traços finos de formas ampliadas sumiam ou viravam tracejado
+const MASK_RES = 512;
 const CONCENTRIC_SCALES = [.35, .5, .65, .8, 1.12, 1.25, 1.4, 1.6];
 
 // Rasteriza as SVGs de BONK_SHAPES em máscaras binárias (alfa > 50%).
