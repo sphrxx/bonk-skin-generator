@@ -101,7 +101,7 @@ class SkinGenerator {
 		this.shapes = shapes;
 		this.target = target;
 		this.N = N;
-		this.opts = Object.assign({ layers: 16, candidates: 690, climb: 150, seeds: 4, refine: 5000, allowFlip: true, reinsertRate: .02, anneal: .02, concentric: true }, options);
+		this.opts = Object.assign({ layers: 16, candidates: 690, climb: 150, seeds: 4, refine: 5000, allowFlip: true, reinsertRate: .02, anneal: .02, concentric: true, structure: true }, options);
 		// options.allowedShapes: ids que o gerador pode usar (padrão: todos)
 		const allowed = this.opts.allowedShapes && this.opts.allowedShapes.length ? new Set(this.opts.allowedShapes) : null;
 		this.shapeIds = shapes.map((s, id) => s && id).filter(id => id && (!allowed || allowed.has(id)));
@@ -123,7 +123,8 @@ class SkinGenerator {
 		this.buckets = new Float64Array((this.opts.layers + 2) * 7);
 		this.layers = [];
 		this.bc = [0, 0, 0];
-		this.phase = "greedy";
+		// Fase "structure": antes da gulosa, encaixa formas nas regiões de cor do alvo (só com paleta)
+		this.phase = this.opts.structure && this.palette ? "structure" : "greedy";
 		this.refineDone = 0;
 		this.refresh(this.layers);
 	}
@@ -446,11 +447,151 @@ class SkinGenerator {
 		return new Set(ev.colors.slice(1).map((c, j) => c.visible ? -1 : j).filter(j => j >= 0));
 	}
 
+	// Regiões conectadas de mesma cor da paleta, com os buracos preenchidos (o rosto inclui os
+	// olhos, que entram depois por cima), da maior para a menor. A maior que cobre quase tudo é o
+	// fundo, que fica com a cor de base.
+	findRegions() {
+		const { N, inCircle, target: T, palette } = this;
+		const label = new Int16Array(N * N).fill(-1);
+		let circleArea = 0;
+		for (let p = 0; p < N * N; p++) {
+			if (inCircle[p]) {
+				let best = Infinity;
+				palette.forEach((c, k) => {
+					const d = (T[p * 3] - c[0]) ** 2 + (T[p * 3 + 1] - c[1]) ** 2 + (T[p * 3 + 2] - c[2]) ** 2;
+					if (d < best) {
+						best = d;
+						label[p] = k;
+					}
+				});
+				circleArea++;
+			}
+		}
+		const seen = new Uint8Array(N * N);
+		const regions = [];
+		const neighbors = p => [p % N ? p - 1 : -1, (p + 1) % N ? p + 1 : -1, p - N, p + N].filter(q => q >= 0 && q < N * N);
+		for (let p0 = 0; p0 < N * N; p0++) {
+			if (label[p0] < 0 || seen[p0]) {
+				continue;
+			}
+			const comp = new Uint8Array(N * N);
+			const stack = [p0];
+			seen[p0] = comp[p0] = 1;
+			let size = 0;
+			while (stack.length) {
+				const p = stack.pop();
+				size++;
+				for (const q of neighbors(p)) {
+					if (!seen[q] && label[q] == label[p0]) {
+						seen[q] = comp[q] = 1;
+						stack.push(q);
+					}
+				}
+			}
+			if (size < 25) {
+				continue;
+			}
+			// Buracos = o que não se alcança pela borda da grade sem atravessar a região
+			const outside = new Uint8Array(N * N);
+			const fill = [];
+			for (let p = 0; p < N * N; p++) {
+				const x = p % N, y = (p / N) | 0;
+				if ((x == 0 || y == 0 || x == N - 1 || y == N - 1) && !comp[p]) {
+					outside[p] = 1;
+					fill.push(p);
+				}
+			}
+			while (fill.length) {
+				for (const q of neighbors(fill.pop())) {
+					if (!outside[q] && !comp[q]) {
+						outside[q] = 1;
+						fill.push(q);
+					}
+				}
+			}
+			let area = 0, sx = 0, sy = 0, sxx = 0, syy = 0, sxy = 0;
+			for (let p = 0; p < N * N; p++) {
+				comp[p] = inCircle[p] && !outside[p] ? 1 : 0;
+				if (comp[p]) {
+					const x = p % N, y = (p / N) | 0;
+					area++; sx += x; sy += y; sxx += x * x; syy += y * y; sxy += x * y;
+				}
+			}
+			const mx = sx / area, my = sy / area;
+			// Eixo principal pelos momentos de segunda ordem
+			const theta = .5 * Math.atan2(2 * (sxy / area - mx * my), sxx / area - mx * mx - (syy / area - my * my));
+			regions.push({ mask: comp, area, mx, my, theta });
+		}
+		regions.sort((a, b) => b.area - a.area);
+		if (regions.length && regions[0].area > .9 * circleArea) {
+			regions.shift();
+		}
+		return regions.slice(0, Math.floor(this.opts.layers / 2));
+	}
+
+	// Sobreposição (interseção/união) entre a camada e a região
+	regionIoU(layer, region) {
+		const n = coveredPixels(layer, this.shapes[layer.id], this.N, this.inCircle, this.pixelBuffer);
+		let inter = 0;
+		for (let j = 0; j < n; j++) {
+			inter += region.mask[this.pixelBuffer[j]];
+		}
+		return inter / (n + region.area - inter);
+	}
+
+	// Melhor forma e pose para cobrir a região: cada forma no centro e no eixo da região, com a
+	// área igual, em 4 ângulos; depois hill climbing a partir das melhores
+	fitRegion(region) {
+		const u = this.N / 2 / SKIN_RADIUS;
+		const pool = [];
+		for (const id of this.shapeIds) {
+			const shape = this.shapes[id];
+			for (let k = 0; k < 4; k++) {
+				const layer = {
+					id,
+					scale: Math.sqrt(region.area / (u * u) / (shape.fill * shape.w * shape.h)),
+					angle: ((region.theta * 180 / Math.PI + k * 45 + 540) % 360) - 180,
+					x: (region.mx + .5 - this.N / 2) / u,
+					y: (region.my + .5 - this.N / 2) / u,
+					flipX: false, flipY: false, color: [0, 0, 0]
+				};
+				pool.push({ layer, iou: this.regionIoU(layer, region) });
+			}
+		}
+		pool.sort((a, b) => b.iou - a.iou);
+		let best = pool[0];
+		for (let seed of pool.slice(0, this.opts.seeds)) {
+			for (let i = 0; i < this.opts.climb; i++) {
+				const layer = this.mutate(seed.layer, 1 - .8 * i / this.opts.climb);
+				const iou = this.regionIoU(layer, region);
+				if (iou > seed.iou) {
+					seed = { layer, iou };
+				}
+			}
+			if (seed.iou > best.iou) {
+				best = seed;
+			}
+		}
+		return best;
+	}
+
 	// Executa trabalho por até budgetMs; devolve o progresso (0..1)
 	step(budgetMs) {
 		const end = performance.now() + budgetMs;
 		while (performance.now() < end) {
-			if (this.phase == "greedy") {
+			if (this.phase == "structure") {
+				this.regions = this.regions || this.findRegions();
+				const region = this.regions.shift();
+				if (!region) {
+					this.phase = "greedy";
+					continue;
+				}
+				// Maiores primeiro, cada uma por cima das anteriores
+				const fit = this.fitRegion(region);
+				if (fit.iou > .5) {
+					this.refresh([fit.layer, ...this.layers]);
+				}
+			} else if (this.phase == "greedy") {
 				if (this.layers.length >= this.opts.layers || !this.addLayer()) {
 					this.invisible = this.findInvisible(this.evaluate(this.layers));
 					this.phase = this.layers.length ? "refine" : "done";
@@ -469,7 +610,7 @@ class SkinGenerator {
 			}
 		}
 		const greedyPart = .4;
-		if (this.phase == "greedy") {
+		if (this.phase == "greedy" || this.phase == "structure") {
 			return greedyPart * this.layers.length / this.opts.layers;
 		}
 		return this.phase == "done" ? 1 : greedyPart + (1 - greedyPart) * this.refineDone / this.opts.refine;
