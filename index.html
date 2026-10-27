@@ -550,7 +550,8 @@ function generate() {
 }
 
 function startWorkers(prepared, options) {
-	const workerShapes = shapes.map(s => s && { id: s.id, w: s.w, h: s.h, mw: s.mw, mh: s.mh, mk: s.mk, mask: s.mask });
+	// Só as formas permitidas: cada worker recebe uma cópia das máscaras (~20 MB todas)
+	const workerShapes = shapes.map(s => s && allowedShapes.has(s.id) && { id: s.id, w: s.w, h: s.h, mw: s.mw, mh: s.mh, mk: s.mk, mask: s.mask });
 	running.attempts.forEach((_, i) => {
 		const worker = new Worker("worker.js");
 		worker.onmessage = e => onAttemptUpdate(i, e.data);

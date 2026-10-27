@@ -222,6 +222,8 @@ node tools/test-extra-layers.js caminho/para/alpha2s-desofuscado.js
 - **Personagens**: use o padrão (*Formas básicas* + *Partes de rosto*) e pinte olhos e boca como
   *Importante*.
 - **Detalhes sumindo**: aumente **Cores** para 7–8 e **Prioridade a detalhes** para ×4–×5, e confira no **Mapa de atenção** se os detalhes ficaram claros.
+- **Reproduzir uma skin que já existe** (print de outra skin): use **Simplificação 0** e **Cores 16**,
+  mantendo as formas padrão. Liberar todas as formas piora: o gerador não aproveita bem as texturas.
 - **Resultado muito variável**: aumente **Tentativas**.
 - Pinte **depois** de ajustar o zoom: a marcação fica presa ao quadro da referência.
 
